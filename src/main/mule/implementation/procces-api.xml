@@ -1,0 +1,148 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:os="http://www.mulesoft.org/schema/mule/os"
+	xmlns:amqp="http://www.mulesoft.org/schema/mule/amqp" xmlns:http="http://www.mulesoft.org/schema/mule/http"
+	xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core"
+	xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="
+http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
+http://www.mulesoft.org/schema/mule/amqp http://www.mulesoft.org/schema/mule/amqp/current/mule-amqp.xsd
+http://www.mulesoft.org/schema/mule/os http://www.mulesoft.org/schema/mule/os/current/mule-os.xsd">
+	
+	
+	<http:request-config name="HTTP_Request_configuration" doc:name="HTTP Request configuration" doc:id="bd3a0836-c568-492a-960d-718708f2a2b7" />
+	<http:request-config name="HTTP_Request_configuration1" doc:name="HTTP Request configuration" doc:id="83adbef6-44bd-4be6-ac3c-cb0148fc9f40" basePath="/api">
+		<http:request-connection host="localhost" port="8081" />
+	</http:request-config>
+	<amqp:config name="AMQP_Config" doc:name="AMQP Config" doc:id="f0e2de91-1dc6-4dc1-b7bb-4fe5ae847b0a" >
+		<amqp:connection host="localhost" username="guest" password="guest" />
+	</amqp:config>
+	<http:request-config name="HTTP_Request_configuration2" doc:name="HTTP Request configuration" doc:id="3fabb809-9940-4ddb-9ba9-82c1dafb33e0" basePath="/api" >
+		<http:request-connection host="localhost" port="8081" />
+	</http:request-config>
+	<http:request-config name="HTTP_Request_configuration3" doc:name="HTTP Request configuration" doc:id="0fd64672-be54-4726-9ff9-45c22d5bfd97" basePath="/api">
+		<http:request-connection host="localhost" port="8081" />
+	</http:request-config>
+	<flow name="insert-floorFlow" doc:id="9c18582f-adec-49b7-a218-d7d5a16eae94">
+		<logger level="INFO" doc:name="Logger" doc:id="07e575cc-0d40-486e-b418-0687ba61a8cc" message="#[payload]" />
+		<set-variable value="#[payload]" doc:name="request body" doc:id="b5003881-37d3-4b18-8be1-f00eb18d2676" variableName="requestBody" />
+		<set-variable value='#[attributes.queryParams.id]' doc:name="Set id " doc:id="90f887fc-60cc-4332-aa5e-67a99e27e9b6" variableName="id" />
+		<choice doc:name="Choice" doc:id="c70f372d-d70d-4015-b81f-fd300c6867ef">
+			<when expression="#[attributes.queryParams.status]">
+				<flow-ref doc:name="Flow Reference to true-case-subflow" doc:id="b1cbeea2-9503-4aea-8359-3a4f53781f9e" name="true-case-subflow"/>
+			
+</when>
+			<otherwise>
+				<flow-ref doc:name="Flow Reference to default-case-subflow" doc:id="e70004f9-4652-42ac-8d1a-a6543e50997b" name="default-case-subflow"/>
+			
+</otherwise>
+		
+</choice>
+	</flow>
+	<sub-flow name="checkStore" doc:id="8cac90f1-96ad-4391-b613-be94d2cc33f4">
+		<choice doc:name="Choice" doc:id="8b13acd1-f22f-400e-befa-b71ac147c40b">
+					<when expression="#[vars.checkStore]">
+						<os:retrieve doc:name="Retrieve" doc:id="ad5b3ce6-ff18-42fc-be1b-6ec7ba2882d3" key="elevatorAcc" target="elevatorAcc" />
+				<ee:transform doc:name="Transform Message" doc:id="5029b510-61a7-46e0-8b13-c57309490272">
+							<ee:message />
+							<ee:variables>
+								<ee:set-variable variableName="elevatorAcc"><![CDATA[%dw 2.0
+output application/json
+var test = {
+	"number": vars.elevatorAcc.number,
+  	"status": vars.elevatorAcc.status,
+  	"floor": vars.requestBody."destination-floor",
+  	"user-id": vars.requestBody."user-id",
+	pendingRequests : 
+	[] + payload
+}
+---
+test
+
+]]></ee:set-variable>
+							</ee:variables>
+						</ee:transform>
+					
+</when>
+					<otherwise>
+						<ee:transform doc:name="Transform Message" doc:id="09becd7a-9ad2-461e-b39e-913c778c744d">
+			<ee:message>
+			</ee:message>
+			<ee:variables>
+				<ee:set-variable variableName="elevatorAcc"><![CDATA[%dw 2.0
+output application/json
+
+var pendingRequests = vars.elevatorAcc[0]."pending-request" default []
+var test = {
+	"number": vars.id,
+  	"status": true,
+  	"floor": payload."destination-floor",
+  	"user-id": payload."user-id",
+	pendingRequests: []
+}
+
+---
+test
+]]></ee:set-variable>
+			</ee:variables>
+		</ee:transform>
+					</otherwise>
+				</choice>
+	</sub-flow>
+	<sub-flow name="true-case-subflow" doc:id="89d04421-c962-448f-be9d-2f4117f92aec" >
+		<os:contains doc:name="Contains" doc:id="4e0b4975-4337-46e3-8482-e1d5f4835e7a" key="elevatorAcc" target="checkStore" />
+		<flow-ref doc:name="Flow Reference to checkStore" doc:id="1b38cef5-533e-48a8-9d66-e3ca1e32993a" name="checkStore" />
+		<http:request method="POST" doc:name="Request sapi to publish" doc:id="fe73a9dd-5613-4b34-86c5-770bd6c955c6" config-ref="HTTP_Request_configuration2" path="/elevator/{id}" >
+			<http:uri-params ><![CDATA[#[output application/java
+---
+{
+	"id" : vars.id
+}]]]></http:uri-params>
+		</http:request>
+		<os:store doc:name="Store" doc:id="bf011af7-1ac8-4966-854b-190d3fee46b6" key="elevator" >
+			<os:value ><![CDATA[#[vars.elevatorAcc]]]></os:value>
+		</os:store>
+		<ee:transform doc:name="Transform Message" doc:id="22d8ea15-2a45-4605-a2b8-4a972e58118a" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+  message: "request has been created .. Going to destination  "
+}]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+	</sub-flow>
+	<sub-flow name="default-case-subflow" doc:id="92aaad49-53bb-48de-b9c2-74c1a4f8f99e" >
+		<http:request method="GET" doc:name="Request sapi to consume" doc:id="cc00af76-d443-4b26-ab22-2a16b3e43acc" config-ref="HTTP_Request_configuration3" path="/elevators" responseTimeout="500000">
+					<http:query-params><![CDATA[#[output application/java
+---
+{
+	"floor" : attributes.queryParams.floor,
+	"status" : attributes.queryParams.status
+}]]]></http:query-params>
+				</http:request>
+		<set-variable value="#[payload]" doc:name="queue" doc:id="5ab28e8a-e61e-4a1a-ba09-2d3f9957aecf" variableName="queue" />
+		<flow-ref doc:name="add request to queue" doc:id="af1aacdb-4dbc-426c-bebd-6f7e81f01ced" name="checkStore" />
+		<http:request method="POST" doc:name="Request sapi to publish" doc:id="b931e28a-cf00-4da9-99da-67c6f5509516" config-ref="HTTP_Request_configuration2" path="/elevator/{id}">
+					<http:uri-params><![CDATA[#[output application/java
+---
+{
+	"id" : vars.id
+}]]]></http:uri-params>
+				</http:request>
+		<ee:transform doc:name="Transform Message" doc:id="a5874b88-508c-4587-9f5d-a954c7b75c04">
+					<ee:message>
+						<ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{
+  message: "request has been added to pending list"
+}]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+	</sub-flow>
+	
+	
+	
+</mule>
