@@ -23,10 +23,20 @@ http://www.mulesoft.org/schema/mule/os http://www.mulesoft.org/schema/mule/os/cu
 	<http:request-config name="HTTP_Request_configuration3" doc:name="HTTP Request configuration" doc:id="0fd64672-be54-4726-9ff9-45c22d5bfd97" basePath="/api">
 		<http:request-connection host="localhost" port="8081" />
 	</http:request-config>
+	<http:request-config name="HTTP_Request_configuration4" doc:name="HTTP Request configuration" doc:id="a3aef5e3-a1d3-4f1d-aca3-a0a54cd8a2ad" >
+		<http:request-connection host="localhost" port="8085" />
+	</http:request-config>
+	<http:request-config name="HTTP_Request_configuration5" doc:name="HTTP Request configuration" doc:id="a65fba8e-5d91-4720-84db-bc05e6d03c5c" >
+		<http:request-connection host="localhost" port="8085" />
+	</http:request-config>
+	<http:request-config name="HTTP_Request_configuration6" doc:name="HTTP Request configuration" doc:id="12e18e10-f5a0-4be7-8fe8-453afb92dbb2" >
+		<http:request-connection host="localhost" port="8085" />
+	</http:request-config>
 	<flow name="insert-floorFlow" doc:id="9c18582f-adec-49b7-a218-d7d5a16eae94">
 		<logger level="INFO" doc:name="Logger" doc:id="07e575cc-0d40-486e-b418-0687ba61a8cc" message="#[payload]" />
 		<set-variable value="#[payload]" doc:name="request body" doc:id="b5003881-37d3-4b18-8be1-f00eb18d2676" variableName="requestBody" />
 		<set-variable value='#[attributes.queryParams.id]' doc:name="Set id " doc:id="90f887fc-60cc-4332-aa5e-67a99e27e9b6" variableName="id" />
+		<set-variable value="#[attributes.queryParams.floor]" doc:name="Set floor" doc:id="9ad6d3b0-d502-4ab9-a910-3c5bc71aa06c" variableName="floor"/>
 		<choice doc:name="Choice" doc:id="c70f372d-d70d-4015-b81f-fd300c6867ef">
 			<when expression="#[attributes.queryParams.status]">
 				<flow-ref doc:name="Flow Reference to true-case-subflow" doc:id="b1cbeea2-9503-4aea-8359-3a4f53781f9e" name="true-case-subflow"/>
@@ -92,15 +102,67 @@ test
 	<sub-flow name="true-case-subflow" doc:id="89d04421-c962-448f-be9d-2f4117f92aec" >
 		<os:contains doc:name="Contains" doc:id="4e0b4975-4337-46e3-8482-e1d5f4835e7a" key="elevatorAcc" target="checkStore" />
 		<flow-ref doc:name="Flow Reference to checkStore" doc:id="1b38cef5-533e-48a8-9d66-e3ca1e32993a" name="checkStore" />
-		<http:request method="POST" doc:name="Request sapi to publish" doc:id="fe73a9dd-5613-4b34-86c5-770bd6c955c6" config-ref="HTTP_Request_configuration2" path="/elevator/{id}" >
-			<http:uri-params ><![CDATA[#[output application/java
+		<logger level="INFO" doc:name="Log before insert" doc:id="23f49317-f6be-413e-91da-24e44ff6f74a" message='#[payload]' category="########################################################"/>
+		<scatter-gather doc:name="Scatter-Gather" doc:id="aef05c33-dd02-4b78-8184-df91478f74ec" >
+			<route >
+				<ee:transform doc:name="Transform Message" doc:id="64d9fdf9-c82d-47d8-bfeb-850cf81a6630">
+					<ee:message>
+						<ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{
+	"name":vars.floor
+}]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+				<http:request method="POST" doc:name="Request insert-elevator" doc:id="b04ff0b7-e5c8-4e25-a3a0-c5663d9ab9d0" path="/insert-elevator" config-ref="HTTP_Request_configuration4"/>
+			</route>
+			<route >
+				<ee:transform doc:name="Transform Message" doc:id="a5079cce-79e4-4b09-9472-c7c3d076a07d" >
+					<ee:message >
+						<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+	"name":"B"
+}]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+				<http:request method="POST" doc:name="Request insert-user" doc:id="0725f1f8-b6bc-4ff0-aa05-5571e74501f9" config-ref="HTTP_Request_configuration5" path="/insert-user"/>
+			</route>
+			<route >
+				<ee:transform doc:name="Transform Message" doc:id="09575d98-243f-4198-b8f1-f9c5253de092" >
+					<ee:message >
+						<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+    "elevator_id":3,
+	"user_id":5,
+	"destination_floor":2,
+	"current_floor":0,
+	"status":true,
+	"time":123456
+	
+	
+}]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+				<http:request method="POST" doc:name="Request insert-movements" doc:id="f637bc18-616d-4fd5-90d8-51d38ae93a36" path="/insert-movements" config-ref="HTTP_Request_configuration6"/>
+			</route>
+			<route >
+				<http:request method="POST" doc:name="Request sapi to publish" doc:id="fe73a9dd-5613-4b34-86c5-770bd6c955c6" config-ref="HTTP_Request_configuration2" path="/elevator/{id}">
+			<http:uri-params><![CDATA[#[output application/java
 ---
 {
 	"id" : vars.id
 }]]]></http:uri-params>
 		</http:request>
-		<os:store doc:name="Store" doc:id="bf011af7-1ac8-4966-854b-190d3fee46b6" key="elevator" >
-			<os:value ><![CDATA[#[vars.elevatorAcc]]]></os:value>
+			</route>
+		
+</scatter-gather>
+		<os:store doc:name="Store" doc:id="bf011af7-1ac8-4966-854b-190d3fee46b6" key="elevator">
+			<os:value><![CDATA[#[vars.elevatorAcc]]]></os:value>
 		</os:store>
 		<ee:transform doc:name="Transform Message" doc:id="22d8ea15-2a45-4605-a2b8-4a972e58118a" >
 			<ee:message >
